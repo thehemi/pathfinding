@@ -52,6 +52,7 @@ public abstract class Unit : MonoBehaviour
 
     public virtual void Start()
     {
+        target = transform;
         m_characterController = GetComponent<CharacterController>();
         Pathfinding.Instance.RequestPath(transform.position, target.position, OnPathFound);
         lastTargetPosition = target.position;

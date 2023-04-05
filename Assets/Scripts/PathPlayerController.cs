@@ -74,33 +74,27 @@ public class PathPlayerController : Unit
 
     Vector3 newPosition;
 
+    /// <summary>
+    /// Crudely checks for mouse click and moves to that position
+    /// </summary>
     public override void Update()
     {
         //      MoveCharacter();
         //     RotateCharacter();
         UpdateCameraPosition();
-        if (Input.GetMouseButtonDown(0))
-        {
-            var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out var hit))
-            {
-                newPosition = hit.point;
-                Pathfinding.Instance.RequestPath(transform.position, newPosition, OnPathFound);
-
-
-            }
-        }
+        if (!Input.GetMouseButtonDown(0)) return;
+        var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        if (!Physics.Raycast(ray, out var hit)) return;
+        target = hit.transform;
+        newPosition = hit.point;
+        Pathfinding.Instance.RequestPath(transform.position, newPosition, OnPathFound);
     }
 
 
 
-
-    void RotateCharacter()
-    {
-        float rotation = Input.GetAxis("Mouse X") * rotationSpeed * Time.deltaTime;
-        transform.Rotate(0, rotation, 0);
-    }
-
+    /// <summary>
+    /// The follow camera
+    /// </summary>
     void UpdateCameraPosition()
     {
         mainCamera.transform.position =
