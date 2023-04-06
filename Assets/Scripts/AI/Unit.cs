@@ -4,37 +4,33 @@ using UnityEngine;
 
 public abstract class Unit : MonoBehaviour
 {
-    #region public variables
-    public GameObject Astar;
+    #region Public Variables
+
+    [Header("General Settings")] public GameObject Astar;
     public bool drawGizmos = false;
-    public float gravity = 9.8f;
     public Transform target;
-    public Vector3 lastTargetPosition;
-    public float movementSpeed = 20;
+
+    [Header("Movement Settings")] public float movementSpeed = 20;
     public float rotationSpeed = 85;
-    [Tooltip("How close to get to waypoint before moving towards next. Fixes movement bug. " +
-        "Issue seen when close to waypoint this.transform cannot get to exact position and oscillates.")]
+    public float gravity = 9.8f;
     public float distanceToWaypoint = 1;
-    [Tooltip("Distance to stop before target if target is occupying selected space")]
     public float stopBeforeDistance = 2;
     public float collisionDetectionDistance = 2.0f;
+    public int jumpSpeed = 1;
+
+    [Header("Pathfinding Settings")] public float period = 5f;
     public Vector2 currentPosition = new Vector2(0, 0);
     public int spacesMoved = 0;
-    // Default action times to 5 second interval
-    public float period = 5f;
-    public float nextActionTime = 5f;
-    public bool isSafeToUpdatePath = false;
-    public int pathFoundCount = 0;
-    public bool isMoving = false;
-    public bool isTargetReached = false;
-    public int jumpSpeed = 1;
+
     #endregion
 
-    #region member variables
-    protected float m_verticalSpeed = 0;
+    #region Member Variables
+
+    private float m_verticalSpeed = 0;
     protected Vector3[] m_path;
     protected int m_targetIndex;
-    protected CharacterController m_characterController;
+    private Vector3 lastTargetPosition;
+    private CharacterController m_characterController;
     private Node lastNodePosition;
     private List<Node> lastPositionNeighbors;
     private Vector3 m_lastKnownPosition;
@@ -42,6 +38,13 @@ public abstract class Unit : MonoBehaviour
     private Grid m_grid;
     private Coroutine lastRoutine = null;
     private bool preventExtraNodeUpdate = false;
+
+    private float nextActionTime;
+    private bool isSafeToUpdatePath = false;
+    private int pathFoundCount = 0;
+    protected bool isMoving = false;
+    protected bool isTargetReached = false;
+
     #endregion
 
     public virtual void Awake()
@@ -55,20 +58,28 @@ public abstract class Unit : MonoBehaviour
         target = transform;
         m_characterController = GetComponent<CharacterController>();
         Pathfinding.Instance.RequestPath(transform.position, target.position, OnPathFound);
-        lastTargetPosition = target.position;
+        nextActionTime = period;
     }
 
     public virtual void Update()
     {
-        var right = transform.TransformDirection(Vector3.forward + Vector3.right).normalized * collisionDetectionDistance;
+        HandleCollisionDetection();
+        HandlePathUpdate();
+        HandleObstacleJump();
+    }
+
+    private void HandleCollisionDetection()
+    {
+        var right = transform.TransformDirection(Vector3.forward + Vector3.right).normalized *
+                    collisionDetectionDistance;
         var left = transform.TransformDirection(Vector3.forward + Vector3.left).normalized * collisionDetectionDistance;
 
         DetectRaycastCollision(right, transform.position, collisionDetectionDistance);
         DetectRaycastCollision(left, transform.position, collisionDetectionDistance);
+    }
 
-        var forward = transform.TransformDirection(Vector3.forward) * collisionDetectionDistance;
-        var isForwardCollision = DetectRaycastCollision(forward, transform.position, collisionDetectionDistance);
-
+    private void HandlePathUpdate()
+    {
         if (Time.time > nextActionTime)
         {
             nextActionTime += period;
@@ -79,7 +90,6 @@ public abstract class Unit : MonoBehaviour
             isSafeToUpdatePath = false;
         }
 
-        // If we don't check !isMoving the AI may get stuck waiting to update the grid for nextActionTime.
         if (isSafeToUpdatePath || (!isMoving && isTargetReached && !preventExtraNodeUpdate))
         {
             preventExtraNodeUpdate = true;
@@ -90,12 +100,9 @@ public abstract class Unit : MonoBehaviour
         {
             UpdatePath();
         }
-        else if (isForwardCollision != null && ((RaycastHit)isForwardCollision).transform.gameObject.GetComponent<Unit>() != null)
+        else if (DetectForwardCollision() != null && isSafeToUpdatePath)
         {
-            if ((!((RaycastHit)isForwardCollision).transform.gameObject.GetComponent<Unit>().isMoving && isSafeToUpdatePath))
-            {
-                UpdatePath();
-            }
+            UpdatePath();
         }
         else if (target.position != lastTargetPosition)
         {
@@ -105,17 +112,34 @@ public abstract class Unit : MonoBehaviour
         }
 
         lastTargetPosition = target.position;
+    }
 
-        // Jump obstacle
-        var lowerForward = transform.TransformDirection(Vector3.forward) * collisionDetectionDistance;
-        var islowerForwardCollision = DetectRaycastCollision(lowerForward, (transform.position + new Vector3(0, -0.5f, 0)), collisionDetectionDistance);
-        if (islowerForwardCollision != null)
+    private RaycastHit? DetectForwardCollision()
+    {
+        var forward = transform.TransformDirection(Vector3.forward) * collisionDetectionDistance;
+        var isForwardCollision = DetectRaycastCollision(forward, transform.position, collisionDetectionDistance);
+
+        if (isForwardCollision == null ||
+            ((RaycastHit) isForwardCollision).transform.gameObject.GetComponent<Unit>() == null) return null;
+
+        if (!((RaycastHit) isForwardCollision).transform.gameObject.GetComponent<Unit>().isMoving)
         {
-            if (m_characterController.isGrounded && ((RaycastHit)islowerForwardCollision).transform.tag == "Jumpable")
-            {
-                m_verticalSpeed = jumpSpeed;
+            return (RaycastHit) isForwardCollision;
+        }
 
-            }
+        return null;
+    }
+
+    private void HandleObstacleJump()
+    {
+        var lowerForward = transform.TransformDirection(Vector3.forward) * collisionDetectionDistance;
+        var islowerForwardCollision = DetectRaycastCollision(lowerForward,
+            (transform.position + new Vector3(0, -0.5f, 0)), collisionDetectionDistance);
+
+        if (islowerForwardCollision != null && m_characterController.isGrounded &&
+            ((RaycastHit) islowerForwardCollision).transform.tag == "Jumpable")
+        {
+            m_verticalSpeed = jumpSpeed;
         }
     }
 
@@ -133,7 +157,6 @@ public abstract class Unit : MonoBehaviour
             m_path = newPath;
             m_targetIndex = 0;
 
-            // Stop coroutine if it is already running.
             if (lastRoutine != null)
                 StopCoroutine(lastRoutine);
 
@@ -146,33 +169,24 @@ public abstract class Unit : MonoBehaviour
         var currentWaypoint = m_path[0];
         while (true)
         {
-
             if (Vector3.Distance(transform.position, currentWaypoint) < distanceToWaypoint)
             {
                 m_targetIndex++;
 
-                // If we are done with path.
                 if (m_targetIndex >= m_path.Length)
                 {
                     isMoving = false;
                     yield break;
                 }
 
-
                 currentWaypoint = m_path[m_targetIndex];
             }
 
-            // Occurs each frame
             UpdatePosition(currentWaypoint);
             yield return null;
-
         }
     }
 
-    /// <summary>
-    /// Calculates movement towards @param(destination).
-    /// </summary>
-    /// <param name="destination"> Target to be moved towards </param>
     public virtual void UpdatePosition(Vector3 destination)
     {
         var node = m_grid.NodeFromWorldPoint(transform.position);
@@ -181,42 +195,27 @@ public abstract class Unit : MonoBehaviour
         m_verticalSpeed -= Mathf.Clamp(gravity * Time.deltaTime, 0, 30);
 
         float penalty = node.movementPenalty == 0 ? 1 : node.movementPenalty;
-        var movement = new Vector3(0, m_verticalSpeed, 0) + direction.normalized * movementSpeed * (100 - penalty) / 100 * Time.deltaTime;
-        // Handles steps and other cases by default
+        var movement = new Vector3(0, m_verticalSpeed, 0) +
+                       (100 - penalty) * movementSpeed * direction.normalized / 100 * Time.deltaTime;
         m_characterController.Move(movement);
-        //transform.Translate(direction.normalized * movementSpeed * Time.deltaTime, Space.World);
     }
 
-    /// <summary>
-    /// Rotate over time to look at target.
-    /// </summary>
     public virtual void UpdateRotation()
     {
         m_lastKnownPosition = target.transform.position;
         m_lookAtRotation = Quaternion.LookRotation(m_lastKnownPosition - transform.position);
-        //m_lookAtRotation.y = 0; removing Y breaks rotation. Probably has to do with conversion to quaternion.
-
-        // If we are not already looking at target continue to rotate.
         if (transform.rotation != m_lookAtRotation)
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, m_lookAtRotation, rotationSpeed * Time.deltaTime);
+            transform.rotation =
+                Quaternion.RotateTowards(transform.rotation, m_lookAtRotation, rotationSpeed * Time.deltaTime);
     }
 
-
-    /// <summary>
-    /// Set current node to unwalkable.
-    /// </summary>
     public void UpdateNodePosition()
     {
         var node = m_grid.NodeFromWorldPoint(transform.position);
 
         if (isMoving == false)
         {
-            lastPositionNeighbors = m_grid.GetNeighbors(node);
-            foreach (var n in lastPositionNeighbors)
-            {
-                if (n.walkable != Walkable.Impassable)
-                    n.walkable = Walkable.Blocked;
-            }
+            UpdateNeighborsToBlocked(node);
             node.walkable = Walkable.Blocked;
             lastNodePosition = node;
             currentPosition = new Vector2(node.X, node.Y);
@@ -226,15 +225,9 @@ public abstract class Unit : MonoBehaviour
         if (lastNodePosition != null && isMoving)
         {
             preventExtraNodeUpdate = false;
-            lastPositionNeighbors = m_grid.GetNeighbors(node);
             lastNodePosition.walkable = Walkable.Passable;
-            // Update all neighbors that weren't impasssable now we've moved
-            if (lastPositionNeighbors != null)
-                foreach (var n in lastPositionNeighbors)
-                {
-                    if (n.walkable != Walkable.Impassable)
-                        n.walkable = Walkable.Passable;
-                }
+            UpdateNeighborsToPassable(node);
+
             if (!node.Equals(lastNodePosition))
                 spacesMoved++;
         }
@@ -244,35 +237,41 @@ public abstract class Unit : MonoBehaviour
             lastNodePosition = node;
             currentPosition = new Vector2(node.X, node.Y);
         }
-
-
-
     }
 
-    /// <summary>
-    /// Draw waypoint path in editor.
-    /// </summary>
+    private void UpdateNeighborsToBlocked(Node node)
+    {
+        lastPositionNeighbors = m_grid.GetNeighbors(node);
+        foreach (var n in lastPositionNeighbors)
+        {
+            if (n.walkable != Walkable.Impassable)
+                n.walkable = Walkable.Blocked;
+        }
+    }
+
+    private void UpdateNeighborsToPassable(Node node)
+    {
+        lastPositionNeighbors = m_grid.GetNeighbors(node);
+        if (lastPositionNeighbors == null) return;
+        foreach (var n in lastPositionNeighbors)
+        {
+            if (n.walkable != Walkable.Impassable)
+                n.walkable = Walkable.Passable;
+        }
+    }
+
     public void OnDrawGizmos()
     {
         if (!drawGizmos)
             return;
 
-        if (m_path != null)
+        if (m_path == null) return;
+        for (var i = m_targetIndex; i < m_path.Length; i++)
         {
-            for (var i = m_targetIndex; i < m_path.Length; i++)
-            {
-                Gizmos.color = Color.black;
-                Gizmos.DrawCube(m_path[i], Vector3.one);
+            Gizmos.color = Color.black;
+            Gizmos.DrawCube(m_path[i], Vector3.one);
 
-                if (i == m_targetIndex)
-                {
-                    Gizmos.DrawLine(transform.position, m_path[i]);
-                }
-                else
-                {
-                    Gizmos.DrawLine(m_path[i - 1], m_path[i]);
-                }
-            }
+            Gizmos.DrawLine(i == m_targetIndex ? transform.position : m_path[i - 1], m_path[i]);
         }
     }
 
@@ -291,4 +290,3 @@ public abstract class Unit : MonoBehaviour
         }
     }
 }
-

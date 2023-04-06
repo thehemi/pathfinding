@@ -1,3 +1,4 @@
+
 using System.Collections;
 using UnityEngine;
 
@@ -7,10 +8,6 @@ using UnityEngine;
 public class PathPlayerController : Unit
 {
     public float moveSpeed = 5f;
-
-    public GameObject cameraObject;
-    public float cameraDistance = 10f;
-    public float cameraHeight = 5f;
 
     private Rigidbody rb;
     private Camera mainCamera;
@@ -67,38 +64,26 @@ public class PathPlayerController : Unit
 
     public override void Start()
     {
+   //     var camFollow = gameObject.GetOrAddComponent<SmoothFollow>();
         rb = GetComponent<Rigidbody>();
-        mainCamera = cameraObject.GetComponent<Camera>();
+      
         base.Start();
     }
 
     Vector3 newPosition;
 
     /// <summary>
-    /// Crudely checks for mouse click and moves to that position
+    
     /// </summary>
     public override void Update()
     {
-        //      MoveCharacter();
-        //     RotateCharacter();
-        UpdateCameraPosition();
         if (!Input.GetMouseButtonDown(0)) return;
-        var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+
+        /// Crudely checks for mouse click and moves to that position
+        var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
         if (!Physics.Raycast(ray, out var hit)) return;
         target = hit.transform;
         newPosition = hit.point;
         Pathfinding.Instance.RequestPath(transform.position, newPosition, OnPathFound);
-    }
-
-
-
-    /// <summary>
-    /// The follow camera
-    /// </summary>
-    void UpdateCameraPosition()
-    {
-        mainCamera.transform.position =
-            transform.position - transform.forward * cameraDistance + Vector3.up * cameraHeight;
-        mainCamera.transform.LookAt(transform);
     }
 }
