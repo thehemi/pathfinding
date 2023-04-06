@@ -4,12 +4,12 @@ Fairly simple dynamic pathfinding implementation.
 -Handles paths that get blocked during navigation
 
 ## Optimization TODO
--DOTS Implementation. Using DOTS or burst compiler would be much faster in theory, but at this scale it's hard to see and the code was much more complicated
--HPA Implementation (hierarchical pathfinding using clusters of smaller grid graphs). I disabled this because it's just overkill for this demo
--Needs profiling to address low level performance issues
+* DOTS Implementation. Using DOTS or burst compiler would be much faster in theory, but at this scale it's hard to see and the code was much more complicated
+* HPA Implementation (hierarchical pathfinding using clusters of smaller grid graphs). I disabled this because it's just overkill for this demo
+* Needs profiling to address low level performance issues
 
 ## Architecture
--Not a beautiful divide between Unity and Pathfinding systems, but this is such a small project, again, it would be overkill
+* Not a beautiful divide between Unity and Pathfinding systems, but this is such a small project, again, it would be overkill
 
 ## Credits
 
