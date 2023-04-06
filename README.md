@@ -43,7 +43,12 @@ pathfinding.FindPath(start, finish, (path) => {
 
 ## Architecture
 
-The current architecture does not have a clear separation between Unity and Pathfinding systems due to the simplicity of the project. However, this can be improved upon as the project grows.
+This *IS NOT* production looking code, because I'd have to bring in a lot of boilerplate and overkill. Please consider this me adapting the solution to the task. However, I'll run through what I would have done differently to show my awareness of the differences:
+ * In production code we'd have very clear patterns for where data is defined, for example, perhaps we avoid the editor and instantiate all components via code (AddComponent etc), or perhaps everything is through prefabs or you can implement annotation classes that do cool funky stuff like load prefabs from disk into GameObjects using [Load("prefab.prefab"). You never want to see a bunch of Start() code that is loading. Encapsulate and abstract and avoid repetition!
+ * The question of whether there should be a divide between Unity dependent code and Unity code arises. For example, in an MMO dedicated server you probably want to abandon Unity altogether, so shared components would not have a dependency.
+ * If I was implementing pathfinding for a real project, I'd create it as a library. I like to follow a customer/developer model even for internal features. It increases reusability, and forces good design patterns even if reuse will not occur
+ * I would also add performance profiling, ideally writing to a network API so I can track usage and make improvements
+ * I would probably use ECS or at least Burst compiler
 
 ## Acknowledgements
 
